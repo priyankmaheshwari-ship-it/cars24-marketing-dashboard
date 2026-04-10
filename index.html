@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CARS24 Marketing Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --orange: #FF6B00;
+    --orange-light: #fff3e8;
+    --dark: #1a1a2e;
+    --card: #ffffff;
+    --bg: #f0f2f7;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --red: #ef4444;
+    --red-light: #fef2f2;
+    --green: #22c55e;
+    --green-light: #f0fdf4;
+    --yellow: #f59e0b;
+    --yellow-light: #fffbeb;
+    --blue: #3b82f6;
+    --blue-light: #eff6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* HEADER */
+  .header { background: var(--dark); color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { background: var(--orange); color: white; font-weight: 800; font-size: 15px; padding: 5px 10px; border-radius: 6px; letter-spacing: 0.5px; }
+  .header h1 { font-size: 16px; font-weight: 600; color: #e2e8f0; }
+  .header-right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* CONTROLS */
+  .controls { background: white; border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-group label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  select { border: 1px solid var(--border); border-radius: 6px; padding: 6px 28px 6px 10px; font-size: 13px; background: white; cursor: pointer; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+  select:focus { border-color: var(--orange); }
+  .run-badge { background: var(--orange-light); color: var(--orange); font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #ffd4a8; }
+
+  /* LAYOUT */
+  .layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; padding: 16px 24px; align-items: start; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+
+  /* CARD */
+  .card { background: var(--card); border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden; margin-bottom: 16px; }
+  .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .platform-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-google { background: #e8f0fe; color: #1a73e8; }
+  .badge-meta { background: #e7f3ff; color: #1877f2; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: #f8fafc; padding: 8px 10px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 2px solid var(--border); white-space: nowrap; }
+  thead th:first-child, thead th:nth-child(2) { text-align: left; }
+  thead th.highlight-col { background: #fffbeb; color: var(--yellow); }
+  tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
+  tbody tr:hover { background: #fafafa; }
+  tbody tr.type-row td:first-child { font-weight: 700; color: var(--dark); background: #f8fafc; }
+  tbody tr.sub-spend td { background: #fffef5; }
+  tbody tr.sub-clicks td { background: #f9fffe; }
+  tbody tr.sub-cpc td { background: #fafaf9; }
+  tbody tr.total-row td { background: #f0f4ff !important; font-weight: 600; }
+  td { padding: 6px 10px; text-align: right; }
+  td:first-child { text-align: left; padding-left: 16px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  td:nth-child(2) { text-align: left; font-weight: 600; color: var(--dark); white-space: nowrap; padding-left: 8px; }
+  .zero-val { color: #d1d5db; }
+  .pct-pos { color: var(--green); font-weight: 700; }
+  .pct-neg { color: var(--red); font-weight: 700; }
+  .pct-warn { color: var(--yellow); font-weight: 700; }
+  .cell-alert { background: #fff0f0 !important; }
+  .col-separator { border-left: 2px solid var(--border); }
+
+  /* ALERTS PANEL */
+  .alerts-panel { position: sticky; top: 16px; }
+  .alerts-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .alerts-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .alert-count { background: var(--red); color: white; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
+  .alerts-body { padding: 8px; max-height: 75vh; overflow-y: auto; }
+  .alert-item { border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid; }
+  .alert-critical { background: var(--red-light); border-color: var(--red); }
+  .alert-warning  { background: var(--yellow-light); border-color: var(--yellow); }
+  .alert-positive { background: var(--green-light); border-color: var(--green); }
+  .alert-info     { background: var(--blue-light); border-color: var(--blue); }
+  .alert-priority { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .alert-critical .alert-priority { color: var(--red); }
+  .alert-warning  .alert-priority { color: var(--yellow); }
+  .alert-positive .alert-priority { color: var(--green); }
+  .alert-info     .alert-priority { color: var(--blue); }
+  .alert-msg { font-size: 12px; font-weight: 600; color: var(--dark); line-height: 1.4; }
+  .alert-detail { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .no-alerts { text-align: center; padding: 30px 16px; color: var(--muted); font-size: 12px; }
+
+  /* SUMMARY STRIP */
+  .summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .summary-card { background: white; border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .summary-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 4px; }
+  .summary-value { font-size: 20px; font-weight: 800; color: var(--dark); }
+  .summary-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .summary-pct { font-size: 12px; font-weight: 700; margin-top: 2px; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 60px; color: var(--muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: var(--red-light); border: 1px solid #fca5a5; border-radius: 8px; padding: 16px; color: var(--red); margin: 20px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">C24</div>
+    <h1>Marketing Intelligence Dashboard</h1>
+  </div>
+  <div class="header-right">
+    <div class="status-dot"></div>
+    <span id="last-updated">Loading...</span>
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <div class="control-group">
+    <label>Date</label>
+    <select id="date-select"><option>Loading...</option></select>
+  </div>
+  <div class="control-group">
+    <label>City</label>
+    <select id="city-select"><option value="all">All Cities</option></select>
+  </div>
+  <div id="run-badge" class="run-badge" style="display:none"></div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+  <!-- LEFT: TABLES -->
+  <div id="main-content">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div>Loading dashboard data...</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: ALERTS -->
+  <div class="alerts-panel card" id="alerts-panel">
+    <div class="alerts-header">
+      <div class="alerts-title">⚡ Smart Alerts <span class="alert-count" id="alert-count">0</span></div>
+    </div>
+    <div class="alerts-body" id="alerts-body">
+      <div class="no-alerts">Loading alerts...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  DATA LOADER
+// ─────────────────────────────────────────────
+let ALL_DATA = [];
+
+const CSV_URL = 'data/dashboard_data.csv';
+
+function loadData() {
+  Papa.parse(CSV_URL, {
+    download: true,
+    header: true,
+    dynamicTyping: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      ALL_DATA = results.data;
+      if (!ALL_DATA.length) { showError('CSV loaded but no rows found.'); return; }
+      initControls();
+      renderAll();
+    },
+    error: function(err) {
+      showError('Could not load dashboard_data.csv. ' + err.message +
+        '<br><br>Make sure the file is at <code>data/dashboard_data.csv</code> relative to this page.');
+    }
+  });
+}
+
+function showError(msg) {
+  document.getElementById('main-content').innerHTML =
+    '<div class="error-box">⚠️ ' + msg + '</div>';
+}
+
+// ─────────────────────────────────────────────
+//  CONTROLS INIT
+// ─────────────────────────────────────────────
+function initControls() {
+  const dates  = [...new Set(ALL_DATA.map(r => r.run_date))].sort().reverse();
+  const cities = [...new Set(ALL_DATA.map(r => r.city))].sort();
+
+  const ds = document.getElementById('date-select');
+  ds.innerHTML = dates.map(d => `<option value="${d}">${formatDate(d)}</option>`).join('');
+
+  const cs = document.getElementById('city-select');
+  cs.innerHTML = '<option value="all">All Cities</option>' +
+    cities.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  ds.addEventListener('change', renderAll);
+  cs.addEventListener('change', renderAll);
+}
+
+function formatDate(d) {
+  if (!d) return d;
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+
+// ─────────────────────────────────────────────
+//  DATA HELPERS
+// ─────────────────────────────────────────────
+function getFiltered() {
+  const date = document.getElementById('date-select').value;
+  const city = document.getElementById('city-select').value;
+  return ALL_DATA.filter(r =>
+    r.run_date === date &&
+    (city === 'all' || r.city === city)
+  );
+}
+
+function getMetric(rows, platform, campaign_type, sub_metric, col) {
+  const r = rows.find(r =>
+    r.platform === platform &&
+    r.campaign_type === campaign_type &&
+    r.sub_metric === sub_metric
+  );
+  return r ? (r[col] ?? 0) : 0;
+}
+
+function sumMetric(rows, platform, campaign_types, sub_metric, col) {
+  // Sum across cities when "All Cities" selected
+  let total = 0;
+  const seen = new Set();
+  rows.forEach(r => {
+    if (r.platform !== platform) return;
+    if (!campaign_types.includes(r.campaign_type)) return;
+    if (r.sub_metric !== sub_metric) return;
+    const key = r.city + '|' + r.platform + '|' + r.campaign_type + '|' + r.sub_metric;
+    if (!seen.has(key)) { seen.add(key); total += (r[col] ?? 0); }
+  });
+  return total;
+}
+
+// ─────────────────────────────────────────────
+//  RENDER ALL
+// ─────────────────────────────────────────────
+function renderAll() {
+  const rows = getFiltered();
+  const date = document.getElementById('date-select').value;
+  const city = document.getElementById('city-select').value;
+
+  document.getElementById('last-updated').textContent =
+    'Run date: ' + formatDate(date);
+
+  const badge = document.getElementById('run-badge');
+  badge.style.display = 'inline-flex';
+  badge.textContent = city === 'all' ? 'All Cities Aggregated' : city;
+
+  const mc = document.getElementById('main-content');
+
+  if (!rows.length) {
+    mc.innerHTML = '<div class="error-box">No data for selected date/city.</div>';
+    return;
+  }
+
+  // Build summary + tables
+  mc.innerHTML = buildSummaryStrip(rows) +
+    buildGoogleTable(rows) +
+    buildMetaTable(rows);
+
+  // Build alerts
+  buildAlerts(rows, date, city);
+}
+
+// ─────────────────────────────────────────────
+//  SUMMARY STRIP
+// ─────────────────────────────────────────────
+function buildSummaryStrip(rows) {
+  const gSpendMTD  = agg(rows, 'Google', 'Google - Total',   'SPEND',  'MTD');
+  const mSpendMTD  = agg(rows, 'Meta',   'Facebook - Total', 'SPEND',  'MTD');
+  const gSpendD1   = agg(rows, 'Google', 'Google - Total',   'SPEND',  'D1');
+  const mSpendD1   = agg(rows, 'Meta',   'Facebook - Total', 'SPEND',  'D1');
+  const gPct       = avgPct(rows, 'Google', 'Google - Total', 'SPEND');
+  const mPct       = avgPct(rows, 'Meta',   'Facebook - Total','SPEND');
+  const totalMTD   = gSpendMTD + mSpendMTD;
+
+  return `<div class="summary-strip">
+    <div class="summary-card">
+      <div class="summary-label">Total MTD Spend</div>
+      <div class="summary-value">${fmtINR(totalMTD)}</div>
+      <div class="summary-sub">Google + Meta combined</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Google MTD</div>
+      <div class="summary-value">${fmtINR(gSpendMTD)}</div>
+      <div class="summary-pct ${pctClass(gPct)}">${gPct !== null ? (gPct>0?'+':'')+gPct+'% vs LMTD' : ''}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Meta MTD</div>
+      <div class="summary-value">${fmtINR(mSpendMTD)}</div>
+      <div class="summary-pct ${pctClass(mPct)}">${mPct !== null ? (mPct>0?'+':'')+mPct+'% vs LMTD' : ''}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Yesterday (D-1)</div>
+      <div class="summary-value">${fmtINR(gSpendD1 + mSpendD1)}</div>
+      <div class="summary-sub">G: ${fmtINR(gSpendD1)} | M: ${fmtINR(mSpendD1)}</div>
+    </div>
+  </div>`;
+}
+
+function agg(rows, platform, campaign_type, sub_metric, col) {
+  return rows
+    .filter(r => r.platform===platform && r.campaign_type===campaign_type && r.sub_metric===sub_metric)
+    .reduce((s,r) => s + (r[col]||0), 0);
+}
+
+function avgPct(rows, platform, campaign_type, sub_metric) {
+  const filtered = rows.filter(r =>
+    r.platform===platform && r.campaign_type===campaign_type &&
+    r.sub_metric===sub_metric && r.MTD_vs_LMTD !== null
+  );
+  if (!filtered.length) return null;
+  // weighted average by MTD spend
+  const totalMTD = filtered.reduce((s,r) => s + (r.MTD||0), 0);
+  if (!totalMTD) return null;
+  const weighted = filtered.reduce((s,r) => s + (r.MTD_vs_LMTD||0) * (r.MTD||0), 0);
+  return Math.round(weighted / totalMTD * 10) / 10;
+}
+
+// ─────────────────────────────────────────────
+//  GOOGLE TABLE
+// ─────────────────────────────────────────────
+const GOOGLE_TYPES = [
+  { key: 'Google - Total',  label: 'Google Total',  isTotal: true },
+  { key: 'Google - PMAX',   label: 'PMAX',          isTotal: false },
+  { key: 'Google - UACi',   label: 'UAC Install',   isTotal: false },
+  { key: 'Google - UACe',   label: 'UAC Engagement',isTotal: false },
+  { key: 'Google - Search', label: 'Search',        isTotal: false },
+];
+
+const META_TYPES = [
+  { key: 'Facebook - Total',      label: 'FB Total',    isTotal: true },
+  { key: 'Facebook - Catalog',    label: 'Catalog',     isTotal: false },
+  { key: 'Facebook - Conversion', label: 'Conversion',  isTotal: false },
+];
+
+const COLS = ['D1','LMTD','LM','MTD','MTD_vs_LMTD','PROJECTED','L7D','LL7D'];
+const COL_LABELS = {
+  D1:'D-1', LMTD:'LMTD', LM:'Last Month', MTD:'MTD',
+  MTD_vs_LMTD:'MTD vs LMTD', PROJECTED:'Projected', L7D:'L7D', LL7D:'LL7D'
+};
+
+function buildGoogleTable(rows) {
+  return buildPlatformTable(rows, 'Google', GOOGLE_TYPES, 'Google Ads Performance', 'badge-google');
+}
+
+function buildMetaTable(rows) {
+  return buildPlatformTable(rows, 'Meta', META_TYPES, 'Meta (Facebook) Performance', 'badge-meta');
+}
+
+function buildPlatformTable(rows, platform, types, title, badgeClass) {
+  let html = `<div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        ${platform === 'Google' ? '🔵' : '🔷'} ${title}
+        <span class="platform-badge ${badgeClass}">${platform}</span>
+      </div>
+    </div>
+    <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Metric</th>
+          <th>D-1</th>
+          <th>LMTD</th>
+          <th>Last Month</th>
+          <th class="highlight-col">MTD</th>
+          <th class="highlight-col">vs LMTD</th>
+          <th>Projected</th>
+          <th class="col-separator">L7D</th>
+          <th>LL7D</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  types.forEach(type => {
+    const typeRows = rows.filter(r => r.platform===platform && r.campaign_type===type.key);
+    ['SPEND','CLICKS','CPC'].forEach((sub, si) => {
+      const r = typeRows.find(r => r.sub_metric === sub);
+      const trClass = (type.isTotal ? 'total-row ' : 'type-row ') + 'sub-' + sub.toLowerCase();
+      html += `<tr class="${trClass}">`;
+      // Type label only on first sub-metric row
+      html += `<td>${si === 0 ? type.label : ''}</td>`;
+      html += `<td>${sub}</td>`;
+
+      if (r) {
+        const d1     = r.D1     ?? 0;
+        const lmtd   = r.LMTD   ?? 0;
+        const lm     = r.LM     ?? 0;
+        const mtd    = r.MTD    ?? 0;
+        const pct    = r.MTD_vs_LMTD;
+        const proj   = r.PROJECTED ?? 0;
+        const l7d    = r.L7D    ?? 0;
+        const ll7d   = r.LL7D   ?? 0;
+
+        const isAlert = (sub === 'SPEND' && d1 === 0 && !type.isTotal);
+
+        html += `<td class="${isAlert ? 'cell-alert' : ''}">${fmtVal(d1, sub)}</td>`;
+        html += `<td>${fmtVal(lmtd, sub)}</td>`;
+        html += `<td>${fmtVal(lm, sub)}</td>`;
+        html += `<td><strong>${fmtVal(mtd, sub)}</strong></td>`;
+        html += `<td>${fmtPct(pct)}</td>`;
+        html += `<td>${fmtVal(proj, sub)}</td>`;
+        html += `<td class="col-separator">${fmtVal(l7d, sub)}</td>`;
+        html += `<td>${fmtVal(ll7d, sub)}</td>`;
+      } else {
+        html += '<td class="zero-val">—</td>'.repeat(8);
+      }
+      html += '</tr>';
+    });
+  });
+
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+// ─────────────────────────────────────────────
+//  ALERTS ENGINE
+// ─────────────────────────────────────────────
+function buildAlerts(rows, date, city) {
+  const alerts = [];
+  const cityLabel = city === 'all' ? 'All Cities' : city;
+
+  // Helper: get all cities in data
+  const cities = [...new Set(rows.map(r => r.city))];
+
+  // Per-city alerts
+  cities.forEach(c => {
+    const cr = rows.filter(r => r.city === c);
+
+    // ── CRITICAL: Zero D-1 spend ──────────────────────────────
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
+      const d1 = agg(cr, platform, totalKey, 'SPEND', 'D1');
+      const mtd = agg(cr, platform, totalKey, 'SPEND', 'MTD');
+      if (d1 === 0 && mtd > 0) {
+        alerts.push({ level: 'critical', city: c, platform,
+          msg: `Zero spend yesterday — ${platform}`,
+          detail: `${c}: No D-1 data. MTD spend is ${fmtINR(mtd)}. Check campaign status.` });
+      }
+    });
+
+    // ── CRITICAL: Big MTD drop ────────────────────────────────
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
+      const pct = getFirstPct(cr, platform, totalKey, 'SPEND');
+      if (pct !== null && pct < -25) {
+        alerts.push({ level: 'critical', city: c, platform,
+          msg: `MTD spend down ${Math.abs(pct)}% vs LMTD — ${platform}`,
+          detail: `${c}: Significant underperformance. Review budget & targeting.` });
+      }
+    });
+
+    // ── WARNING: CPC spike ────────────────────────────────────
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
+      const cpcMTD  = agg(cr, platform, totalKey, 'CPC', 'MTD');
+      const cpcLMTD = agg(cr, platform, totalKey, 'CPC', 'LMTD');
+      if (cpcLMTD > 0 && cpcMTD > 0) {
+        const spike = Math.round((cpcMTD - cpcLMTD) / cpcLMTD * 100);
+        if (spike > 20) {
+          alerts.push({ level: 'warning', city: c, platform,
+            msg: `CPC up ${spike}% vs LMTD — ${platform}`,
+            detail: `${c}: CPC ₹${cpcMTD.toFixed(0)} vs ₹${cpcLMTD.toFixed(0)} last month.` });
+        }
+      }
+    });
+
+    // ── WARNING: Pacing behind ────────────────────────────────
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
+      const mtd  = agg(cr, platform, totalKey, 'SPEND', 'MTD');
+      const proj = agg(cr, platform, totalKey, 'SPEND', 'PROJECTED');
+      const lm   = agg(cr, platform, totalKey, 'SPEND', 'LM');
+      if (lm > 0 && proj > 0 && (proj / lm) < 0.75) {
+        alerts.push({ level: 'warning', city: c, platform,
+          msg: `Pacing at ${Math.round(proj/lm*100)}% of last month — ${platform}`,
+          detail: `${c}: Projected ${fmtINR(proj)} vs LM ${fmtINR(lm)}.` });
+      }
+    });
+
+    // ── WARNING: Click drop without spend drop ───────────────
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
+      const spendPct  = getFirstPct(cr, platform, totalKey, 'SPEND');
+      const clickPctR = cr.find(r => r.platform===platform && r.campaign_type===totalKey && r.sub_metric==='CLICKS');
+      const clickPct  = clickPctR ? clickPctR.MTD_vs_LMTD : null;
+      if (spendPct !== null && clickPct !== null && clickPct < -20 && spendPct > -10) {
+        alerts.push({ level: 'warning', city: c, platform,
+          msg: `Clicks down ${Math.abs(Math.round(clickPct))}% despite stable spend — ${platform}`,
+          detail: `${c}: Quality/CTR may have dropped. Review ad creatives.` });
+      }
+    });
+
+    // ── POSITIVE: Strong outperformance ──────────────────────
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
+      const pct = getFirstPct(cr, platform, totalKey, 'SPEND');
+      if (pct !== null && pct > 30) {
+        alerts.push({ level: 'positive', city: c, platform,
+          msg: `MTD spend up ${Math.round(pct)}% vs LMTD — ${platform}`,
+          detail: `${c}: Strong growth momentum.` });
+      }
+    });
+  });
+
+  // ── INFO: Best & worst city overall ──────────────────────
+  const citySpends = cities.map(c => ({
+    city: c,
+    mtd: agg(rows.filter(r=>r.city===c), 'Google', 'Google - Total', 'SPEND', 'MTD') +
+         agg(rows.filter(r=>r.city===c), 'Meta',   'Facebook - Total','SPEND', 'MTD')
+  })).sort((a,b) => b.mtd - a.mtd);
+
+  if (citySpends.length > 1) {
+    const best  = citySpends[0];
+    const worst = citySpends[citySpends.length - 1];
+    if (best.mtd > 0)
+      alerts.push({ level: 'info', city: best.city, platform: 'Both',
+        msg: `Top city: ${best.city}`,
+        detail: `MTD combined spend: ${fmtINR(best.mtd)}` });
+    if (worst.mtd >= 0 && citySpends.length > 2)
+      alerts.push({ level: 'info', city: worst.city, platform: 'Both',
+        msg: `Lowest city: ${worst.city}`,
+        detail: `MTD combined spend: ${fmtINR(worst.mtd)}` });
+  }
+
+  // Sort: critical first
+  const order = { critical:0, warning:1, positive:2, info:3 };
+  alerts.sort((a,b) => order[a.level] - order[b.level]);
+
+  // Render
+  const body = document.getElementById('alerts-body');
+  const count = document.getElementById('alert-count');
+
+  const criticalCount = alerts.filter(a => a.level === 'critical').length;
+  count.textContent = criticalCount || alerts.length;
+  count.style.background = criticalCount > 0 ? 'var(--red)' : 'var(--orange)';
+
+  if (!alerts.length) {
+    body.innerHTML = '<div class="no-alerts">✅ No issues detected</div>';
+    return;
+  }
+
+  const icons = { critical:'🔴', warning:'🟡', positive:'🟢', info:'🔵' };
+  const labels = { critical:'Critical', warning:'Warning', positive:'Opportunity', info:'Insight' };
+
+  body.innerHTML = alerts.map(a => `
+    <div class="alert-item alert-${a.level}">
+      <div class="alert-priority">${icons[a.level]} ${labels[a.level]}</div>
+      <div class="alert-msg">${a.msg}</div>
+      <div class="alert-detail">${a.detail}</div>
+    </div>`).join('');
+}
+
+function getFirstPct(rows, platform, campaign_type, sub_metric) {
+  const r = rows.find(r => r.platform===platform && r.campaign_type===campaign_type && r.sub_metric===sub_metric);
+  return r ? r.MTD_vs_LMTD : null;
+}
+
+// ─────────────────────────────────────────────
+//  FORMATTERS
+// ─────────────────────────────────────────────
+function fmtINR(v) {
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  if (v >= 10000000) return '₹' + (v/10000000).toFixed(2) + ' Cr';
+  if (v >= 100000)   return '₹' + (v/100000).toFixed(2) + ' L';
+  if (v >= 1000)     return '₹' + (v/1000).toFixed(1) + 'K';
+  return '₹' + Math.round(v).toLocaleString('en-IN');
+}
+
+function fmtVal(v, sub) {
+  if (v === null || v === undefined || isNaN(v)) return '<span class="zero-val">—</span>';
+  if (v === 0) return '<span class="zero-val">0</span>';
+  if (sub === 'SPEND')  return fmtINR(v);
+  if (sub === 'CLICKS') return Number(v).toLocaleString('en-IN');
+  if (sub === 'CPC')    return '₹' + Number(v).toFixed(0);
+  return v;
+}
+
+function fmtPct(v) {
+  if (v === null || v === undefined || isNaN(v)) return '<span class="zero-val">—</span>';
+  const cls = v >= 10 ? 'pct-pos' : v <= -10 ? 'pct-neg' : 'pct-warn';
+  const sign = v > 0 ? '+' : '';
+  return `<span class="${cls}">${sign}${v}%</span>`;
+}
+
+function pctClass(v) {
+  if (v === null || v === undefined) return '';
+  return v >= 10 ? 'pct-pos' : v <= -10 ? 'pct-neg' : 'pct-warn';
+}
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
