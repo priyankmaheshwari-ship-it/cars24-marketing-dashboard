@@ -84,19 +84,42 @@
   .alerts-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
   .alerts-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
   .alert-count { background: var(--red); color: white; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
-  .alerts-body { padding: 8px; max-height: 75vh; overflow-y: auto; }
-  .alert-item { border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid; }
+  .alerts-body { padding: 8px; max-height: 82vh; overflow-y: auto; }
+
+  /* Alert cards */
+  .alert-item { border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 4px solid; }
+  .alert-urgent   { background: #fff0f0; border-color: #cc0000; }
   .alert-critical { background: var(--red-light); border-color: var(--red); }
+  .alert-high     { background: #fff4ed; border-color: #f97316; }
   .alert-warning  { background: var(--yellow-light); border-color: var(--yellow); }
   .alert-positive { background: var(--green-light); border-color: var(--green); }
   .alert-info     { background: var(--blue-light); border-color: var(--blue); }
-  .alert-priority { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
-  .alert-critical .alert-priority { color: var(--red); }
-  .alert-warning  .alert-priority { color: var(--yellow); }
-  .alert-positive .alert-priority { color: var(--green); }
-  .alert-info     .alert-priority { color: var(--blue); }
-  .alert-msg { font-size: 12px; font-weight: 600; color: var(--dark); line-height: 1.4; }
-  .alert-detail { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* Alert typography */
+  .alert-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.9px; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
+  .alert-urgent   .alert-label { color: #cc0000; }
+  .alert-critical .alert-label { color: var(--red); }
+  .alert-high     .alert-label { color: #f97316; }
+  .alert-warning  .alert-label { color: #d97706; }
+  .alert-positive .alert-label { color: #16a34a; }
+  .alert-info     .alert-label { color: var(--blue); }
+
+  .alert-impact { font-size: 13px; font-weight: 700; color: var(--dark); line-height: 1.3; margin-bottom: 3px; }
+  .alert-context { font-size: 11px; color: var(--muted); line-height: 1.4; margin-bottom: 5px; }
+  .alert-action { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+  .alert-urgent   .alert-action { background: #ffebeb; color: #cc0000; }
+  .alert-critical .alert-action { background: #fee2e2; color: var(--red); }
+  .alert-high     .alert-action { background: #ffedd5; color: #ea580c; }
+  .alert-warning  .alert-action { background: #fef3c7; color: #b45309; }
+  .alert-positive .alert-action { background: #dcfce7; color: #15803d; }
+  .alert-info     .alert-action { background: #dbeafe; color: #1d4ed8; }
+
+  .alert-impact-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 4px; vertical-align: middle; }
+  .tag-loss   { background: #fee2e2; color: var(--red); }
+  .tag-risk   { background: #ffedd5; color: #ea580c; }
+  .tag-gain   { background: #dcfce7; color: #15803d; }
+
+  .section-divider { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 6px 4px 2px; margin-top: 4px; }
   .no-alerts { text-align: center; padding: 30px 16px; color: var(--muted); font-size: 12px; }
 
   /* SUMMARY STRIP */
@@ -482,231 +505,329 @@ function buildPlatformTable(rows, platform, types, title, badgeClass) {
 }
 
 // ─────────────────────────────────────────────
-//  ALERTS ENGINE  — city-filter aware
+//  ALERTS ENGINE  — manager-centric, ₹-impact prioritised
 // ─────────────────────────────────────────────
 
-// Get a single aggregated metric using correct aggregation (spend/clicks summed, CPC derived)
 function getAggMetric(cityRows, platform, campaignType, sub, col) {
-  const typeRows = cityRows.filter(r => r.platform === platform && r.campaign_type === campaignType);
-  const agged = sub === 'CPC' ? computeAggCPC(typeRows) : aggregateSubRows(typeRows, sub);
-  if (!agged) return 0;
-  return parseFloat(agged[col]) || 0;
+  const typeRows = cityRows.filter(r => r.platform===platform && r.campaign_type===campaignType);
+  const agged = sub==='CPC' ? computeAggCPC(typeRows) : aggregateSubRows(typeRows, sub);
+  return agged ? (parseFloat(agged[col]) || 0) : 0;
 }
-
 function getAggPct(cityRows, platform, campaignType, sub) {
-  const typeRows = cityRows.filter(r => r.platform === platform && r.campaign_type === campaignType);
-  const agged = sub === 'CPC' ? computeAggCPC(typeRows) : aggregateSubRows(typeRows, sub);
+  const typeRows = cityRows.filter(r => r.platform===platform && r.campaign_type===campaignType);
+  const agged = sub==='CPC' ? computeAggCPC(typeRows) : aggregateSubRows(typeRows, sub);
   return agged ? agged.MTD_vs_LMTD : null;
 }
 
 function buildAlerts(rows, date, selectedCity) {
-  const alerts  = [];
-  const isAll   = selectedCity === 'all';
-  const cities  = [...new Set(rows.map(r => r.city))];
+  const isAll  = selectedCity === 'all';
+  const cities = [...new Set(rows.map(r => r.city))];
 
-  const GOOGLE_SUB_TYPES = [
+  const GOOGLE_TYPES_SUB = [
     ['Google - PMAX',   'PMAX'],
     ['Google - UACi',   'UAC Install'],
     ['Google - UACe',   'UAC Engage'],
     ['Google - Search', 'Search'],
   ];
-  const META_SUB_TYPES = [
+  const META_TYPES_SUB = [
     ['Facebook - Catalog',    'Catalog'],
     ['Facebook - Conversion', 'Conversion'],
   ];
 
-  // ── Per-city platform-level alerts ───────────────────────
+  // Each alert: { level, score, impact, title, context, action }
+  // level: urgent | critical | high | warning | positive | info
+  // score: ₹ impact (higher = shown first within level)
+  const alerts = [];
+
+  function push(level, score, impact, title, context, action) {
+    alerts.push({ level, score, impact, title, context, action });
+  }
+
   cities.forEach(c => {
-    const cr     = rows.filter(r => r.city === c);
-    const prefix = isAll ? `${c}` : '';   // city prefix only in all-cities mode
+    const cr = rows.filter(r => r.city === c);
 
-    ['Google', 'Meta'].forEach(platform => {
-      const totalKey  = platform === 'Google' ? 'Google - Total' : 'Facebook - Total';
-      const subTypes  = platform === 'Google' ? GOOGLE_SUB_TYPES : META_SUB_TYPES;
+    ['Google','Meta'].forEach(platform => {
+      const totalKey = platform==='Google' ? 'Google - Total' : 'Facebook - Total';
+      const subTypes = platform==='Google' ? GOOGLE_TYPES_SUB : META_TYPES_SUB;
 
-      const spendD1   = getAggMetric(cr, platform, totalKey, 'SPEND',  'D1');
-      const spendMTD  = getAggMetric(cr, platform, totalKey, 'SPEND',  'MTD');
-      const spendLMTD = getAggMetric(cr, platform, totalKey, 'SPEND',  'LMTD');
-      const spendLM   = getAggMetric(cr, platform, totalKey, 'SPEND',  'LM');
-      const spendProj = getAggMetric(cr, platform, totalKey, 'SPEND',  'PROJECTED');
-      const spendPct  = getAggPct   (cr, platform, totalKey, 'SPEND');
-      const clicksMTD = getAggMetric(cr, platform, totalKey, 'CLICKS', 'MTD');
-      const clicksLMTD= getAggMetric(cr, platform, totalKey, 'CLICKS', 'LMTD');
-      const cpcMTD    = getAggMetric(cr, platform, totalKey, 'CPC',    'MTD');
-      const cpcLMTD   = getAggMetric(cr, platform, totalKey, 'CPC',    'LMTD');
-      const clicksPct = clicksLMTD > 0 ? Math.round((clicksMTD - clicksLMTD) / clicksLMTD * 100) : null;
-      const cpcSpike  = cpcLMTD > 0 && cpcMTD > 0 ? Math.round((cpcMTD - cpcLMTD) / cpcLMTD * 100) : 0;
-      const label     = isAll ? `${c} · ${platform}` : platform;
+      const spendD1    = getAggMetric(cr, platform, totalKey, 'SPEND',  'D1');
+      const spendMTD   = getAggMetric(cr, platform, totalKey, 'SPEND',  'MTD');
+      const spendLMTD  = getAggMetric(cr, platform, totalKey, 'SPEND',  'LMTD');
+      const spendLM    = getAggMetric(cr, platform, totalKey, 'SPEND',  'LM');
+      const spendProj  = getAggMetric(cr, platform, totalKey, 'SPEND',  'PROJECTED');
+      const spendPct   = getAggPct   (cr, platform, totalKey, 'SPEND');
+      const clicksMTD  = getAggMetric(cr, platform, totalKey, 'CLICKS', 'MTD');
+      const clicksLMTD = getAggMetric(cr, platform, totalKey, 'CLICKS', 'LMTD');
+      const cpcMTD     = getAggMetric(cr, platform, totalKey, 'CPC',    'MTD');
+      const cpcLMTD    = getAggMetric(cr, platform, totalKey, 'CPC',    'LMTD');
+      const clicksPct  = clicksLMTD > 0 ? Math.round((clicksMTD-clicksLMTD)/clicksLMTD*100) : null;
+      const cpcDelta   = cpcLMTD > 0 && cpcMTD > 0 ? Math.round((cpcMTD-cpcLMTD)/cpcLMTD*100) : 0;
+      const pacingPct  = spendLM > 0 ? spendProj/spendLM*100 : null;
+      const shortfall  = spendLM > 0 ? spendLM - spendProj : 0;
+      const extraCost  = cpcLMTD > 0 && cpcMTD > 0 ? spendMTD*(1-cpcLMTD/cpcMTD) : 0;
+      const loc        = isAll ? `${c} · ${platform}` : platform;
 
-      if (spendMTD === 0) return; // skip cities/platforms with zero activity
+      if (spendMTD === 0) return;
 
-      // CRITICAL: No spend yesterday but active this month
+      // ── URGENT: Complete spend stop (active account, zero yesterday) ──
       if (spendD1 === 0) {
-        alerts.push({ level: 'critical', city: c, platform,
-          msg:    `Zero D-1 spend — ${label}`,
-          detail: `No spend yesterday. MTD: ${fmtINR(spendMTD)}. Campaigns may have paused.` });
+        push('urgent', spendMTD,
+          fmtINR(spendMTD) + ' at risk',
+          `🚨 Campaigns paused — ${loc}`,
+          `Zero spend yesterday. If unplanned, you are losing ~${fmtINR(spendMTD/9)} per day based on MTD pace.`,
+          `Check campaign status, budget caps & billing`
+        );
       }
 
-      // CRITICAL: MTD drop > 25% vs LMTD
-      if (spendPct !== null && spendPct < -25) {
-        alerts.push({ level: 'critical', city: c, platform,
-          msg:    `Spend down ${Math.abs(spendPct)}% vs LMTD — ${label}`,
-          detail: `MTD ${fmtINR(spendMTD)} vs LMTD ${fmtINR(spendLMTD)}. Review budgets urgently.` });
+      // ── CRITICAL: Large spend drop >30% ──
+      if (spendPct !== null && spendPct < -30) {
+        const lost = spendLMTD - spendMTD;
+        push('critical', lost,
+          fmtINR(lost) + ' under-delivered vs LMTD',
+          `Spend down ${Math.abs(Math.round(spendPct))}% — ${loc}`,
+          `MTD ${fmtINR(spendMTD)} vs ${fmtINR(spendLMTD)} same period last month. Month-end gap ~${fmtINR(Math.max(0,spendLM-spendProj))}.`,
+          `Raise daily budget cap, check bid floors`
+        );
       }
 
-      // WARNING: CPC spike > 20%
-      if (cpcSpike > 20) {
-        alerts.push({ level: 'warning', city: c, platform,
-          msg:    `CPC up ${cpcSpike}% vs LMTD — ${label}`,
-          detail: `CPC ₹${cpcMTD.toFixed(0)} MTD vs ₹${cpcLMTD.toFixed(0)} LMTD. Check bid strategy.` });
+      // ── HIGH: Moderate drop 15–30% ──
+      if (spendPct !== null && spendPct >= -30 && spendPct < -15) {
+        const lost = spendLMTD - spendMTD;
+        push('high', lost,
+          fmtINR(lost) + ' below last month pace',
+          `Spend down ${Math.abs(Math.round(spendPct))}% — ${loc}`,
+          `MTD ${fmtINR(spendMTD)} vs LMTD ${fmtINR(spendLMTD)}. On track for ${fmtINR(spendProj)} vs LM ${fmtINR(spendLM)}.`,
+          `Review budget utilisation and bid competitiveness`
+        );
       }
 
-      // WARNING: Pacing < 75% of last month
-      if (spendLM > 0 && spendProj > 0 && (spendProj / spendLM) < 0.75) {
-        alerts.push({ level: 'warning', city: c, platform,
-          msg:    `Pacing ${Math.round(spendProj / spendLM * 100)}% of last month — ${label}`,
-          detail: `Projected ${fmtINR(spendProj)} vs LM ${fmtINR(spendLM)}. Increase budgets.` });
+      // ── CRITICAL: CPC spike >40% (efficiency collapse) ──
+      if (cpcDelta > 40) {
+        push('critical', extraCost,
+          fmtINR(extraCost) + ' extra spend vs LMTD CPC',
+          `CPC up ${cpcDelta}% — ${loc}`,
+          `CPC ₹${cpcMTD.toFixed(0)} vs ₹${cpcLMTD.toFixed(0)} LMTD. At LMTD efficiency you'd have saved ~${fmtINR(extraCost)} this month.`,
+          `Audit bids, check competition, review match types`
+        );
       }
 
-      // WARNING: Clicks dropping without spend drop (CTR / quality issue)
+      // ── HIGH: CPC spike 20–40% ──
+      if (cpcDelta > 20 && cpcDelta <= 40) {
+        push('high', extraCost,
+          fmtINR(extraCost) + ' efficiency drag this month',
+          `CPC up ${cpcDelta}% — ${loc}`,
+          `CPC ₹${cpcMTD.toFixed(0)} MTD vs ₹${cpcLMTD.toFixed(0)} LMTD. Rising cost-per-click is reducing ROI.`,
+          `Lower target CPA / review keyword bids`
+        );
+      }
+
+      // ── HIGH: Pacing risk — projected to miss month ──
+      if (pacingPct !== null && pacingPct < 75 && spendLM > 0) {
+        push('high', shortfall,
+          fmtINR(shortfall) + ' projected shortfall vs last month',
+          `Pacing ${Math.round(pacingPct)}% of last month — ${loc}`,
+          `Projected ${fmtINR(spendProj)} vs LM ${fmtINR(spendLM)}. ${Math.round(100-pacingPct)}% gap to close in remaining days.`,
+          `Increase daily budget or switch to maximise spend mode`
+        );
+      }
+
+      // ── WARNING: Clicks collapsing with stable spend (CTR/quality) ──
       if (spendPct !== null && clicksPct !== null && clicksPct < -20 && spendPct > -10) {
-        alerts.push({ level: 'warning', city: c, platform,
-          msg:    `Clicks −${Math.abs(clicksPct)}% with stable spend — ${label}`,
-          detail: `CTR/quality degradation. MTD clicks ${(clicksMTD/1000).toFixed(1)}K vs LMTD ${(clicksLMTD/1000).toFixed(1)}K.` });
+        const impliedWaste = spendMTD * Math.abs(clicksPct)/100;
+        push('warning', impliedWaste,
+          `${Math.abs(clicksPct)}% fewer clicks for same spend`,
+          `CTR degrading — ${loc}`,
+          `Clicks ${(clicksMTD/1000).toFixed(1)}K vs ${(clicksLMTD/1000).toFixed(1)}K LMTD. Spend is steady — audience fatigue or ad quality drop.`,
+          `Refresh creatives, review audience overlap, check ad scores`
+        );
       }
 
-      // POSITIVE: Strong growth > 20%
-      if (spendPct !== null && spendPct > 20) {
-        alerts.push({ level: 'positive', city: c, platform,
-          msg:    `Spend up ${Math.round(spendPct)}% vs LMTD — ${label}`,
-          detail: `MTD ${fmtINR(spendMTD)} vs LMTD ${fmtINR(spendLMTD)}.` });
+      // ── POSITIVE: Strong growth with good or stable CPC ──
+      if (spendPct !== null && spendPct > 20 && cpcDelta <= 10) {
+        push('positive', spendMTD,
+          `+${Math.round(spendPct)}% spend, CPC ${cpcDelta<=0?'down':'stable'}`,
+          `Scaling efficiently — ${loc}`,
+          `MTD ${fmtINR(spendMTD)} vs LMTD ${fmtINR(spendLMTD)}. CPC ₹${cpcMTD.toFixed(0)} (${cpcDelta>0?'+':''}${cpcDelta}%). Best candidate to increase budget.`,
+          `Scale budget 10–20% to capture more volume`
+        );
       }
 
-      // ── Single-city mode: drill into each campaign type ──────
+      // ── Single-city: per campaign-type breakdown ──
       if (!isAll) {
         subTypes.forEach(([typeKey, typeLabel]) => {
-          const typeRowsF   = cr.filter(r => r.platform===platform && r.campaign_type===typeKey);
-          const tSpendAgg   = aggregateSubRows(typeRowsF, 'SPEND');
-          const tClicksAgg  = aggregateSubRows(typeRowsF, 'CLICKS');
-          const tCPCAgg     = computeAggCPC(typeRowsF);
-          if (!tSpendAgg) return;
+          const tRows   = cr.filter(r => r.platform===platform && r.campaign_type===typeKey);
+          const tSpend  = aggregateSubRows(tRows, 'SPEND');
+          const tClicks = aggregateSubRows(tRows, 'CLICKS');
+          const tCPC    = computeAggCPC(tRows);
+          if (!tSpend) return;
 
-          const tMTD   = parseFloat(tSpendAgg.MTD)       || 0;
-          const tD1    = parseFloat(tSpendAgg.D1)        || 0;
-          const tLMTD  = parseFloat(tSpendAgg.LMTD)      || 0;
-          const tLM    = parseFloat(tSpendAgg.LM)        || 0;
-          const tProj  = parseFloat(tSpendAgg.PROJECTED) || 0;
-          const tPct   = tSpendAgg.MTD_vs_LMTD;
-          const tCPC   = tCPCAgg ? parseFloat(tCPCAgg.MTD)  || 0 : 0;
-          const tCPCLM = tCPCAgg ? parseFloat(tCPCAgg.LMTD) || 0 : 0;
-          const tClkMTD  = tClicksAgg ? parseFloat(tClicksAgg.MTD)  || 0 : 0;
-          const tClkLMTD = tClicksAgg ? parseFloat(tClicksAgg.LMTD) || 0 : 0;
-          const tClkPct  = tClkLMTD > 0 ? Math.round((tClkMTD-tClkLMTD)/tClkLMTD*100) : null;
+          const tMTD    = parseFloat(tSpend.MTD)       || 0;
+          const tD1     = parseFloat(tSpend.D1)        || 0;
+          const tLMTD   = parseFloat(tSpend.LMTD)      || 0;
+          const tLM     = parseFloat(tSpend.LM)        || 0;
+          const tProj   = parseFloat(tSpend.PROJECTED) || 0;
+          const tPct    = tSpend.MTD_vs_LMTD;
+          const tCPCmtd = tCPC ? parseFloat(tCPC.MTD)  || 0 : 0;
+          const tCPClm  = tCPC ? parseFloat(tCPC.LMTD) || 0 : 0;
+          const tCkMTD  = tClicks ? parseFloat(tClicks.MTD)  || 0 : 0;
+          const tCkLMTD = tClicks ? parseFloat(tClicks.LMTD) || 0 : 0;
+          const tCkPct  = tCkLMTD > 0 ? Math.round((tCkMTD-tCkLMTD)/tCkLMTD*100) : null;
+          const tCpcD   = tCPClm>0 && tCPCmtd>0 ? Math.round((tCPCmtd-tCPClm)/tCPClm*100) : 0;
 
           if (tMTD === 0) return;
 
-          // Per-type: zero yesterday
           if (tD1 === 0) {
-            alerts.push({ level: 'critical', city: c, platform,
-              msg:    `${platform} ${typeLabel}: No spend yesterday`,
-              detail: `₹0 D-1 spend. MTD: ${fmtINR(tMTD)}. Check campaign status.` });
+            push('urgent', tMTD,
+              fmtINR(tMTD) + ' MTD now inactive',
+              `${platform} ${typeLabel}: Zero spend yesterday`,
+              `Campaign type went dark. Check status, budgets and policy flags.`,
+              `Unpause campaigns / check billing`
+            );
           }
-          // Per-type: CPC spike
-          if (tCPCLM > 0 && tCPC > 0) {
-            const spike = Math.round((tCPC - tCPCLM) / tCPCLM * 100);
-            if (spike > 25) {
-              alerts.push({ level: 'warning', city: c, platform,
-                msg:    `${platform} ${typeLabel}: CPC up ${spike}%`,
-                detail: `₹${tCPC.toFixed(0)} MTD vs ₹${tCPCLM.toFixed(0)} LMTD.` });
-            }
+          if (tCpcD > 30) {
+            const waste = tMTD*(1-tCPClm/tCPCmtd);
+            push('high', waste,
+              fmtINR(waste) + ' efficiency loss vs LMTD',
+              `${platform} ${typeLabel}: CPC up ${tCpcD}%`,
+              `CPC ₹${tCPCmtd.toFixed(0)} vs ₹${tCPClm.toFixed(0)} LMTD. Paying more per click than last month.`,
+              `Review bids and targeting`
+            );
           }
-          // Per-type: pacing low
-          if (tLM > 0 && tProj > 0 && tProj / tLM < 0.70) {
-            alerts.push({ level: 'warning', city: c, platform,
-              msg:    `${platform} ${typeLabel}: Pacing ${Math.round(tProj/tLM*100)}%`,
-              detail: `Projected ${fmtINR(tProj)} vs LM ${fmtINR(tLM)}.` });
+          if (tLM > 0 && tProj > 0 && tProj/tLM < 0.70) {
+            push('warning', tLM-tProj,
+              fmtINR(tLM-tProj) + ' projected shortfall',
+              `${platform} ${typeLabel}: Pacing ${Math.round(tProj/tLM*100)}%`,
+              `On track for ${fmtINR(tProj)} vs last month's ${fmtINR(tLM)}.`,
+              `Increase budget allocation for this type`
+            );
           }
-          // Per-type: click drop without spend drop
-          if (tPct !== null && tClkPct !== null && tClkPct < -20 && tPct > -10) {
-            alerts.push({ level: 'warning', city: c, platform,
-              msg:    `${platform} ${typeLabel}: Clicks −${Math.abs(tClkPct)}%`,
-              detail: `Spend stable but ${tClkMTD.toLocaleString()} vs ${tClkLMTD.toLocaleString()} clicks.` });
+          if (tPct !== null && tCkPct !== null && tCkPct < -25 && tPct > -10) {
+            push('warning', tMTD*0.2,
+              `${Math.abs(tCkPct)}% fewer clicks, spend unchanged`,
+              `${platform} ${typeLabel}: CTR dropping`,
+              `${tCkMTD.toLocaleString()} clicks vs ${tCkLMTD.toLocaleString()} LMTD. Ad fatigue or quality score drop.`,
+              `Refresh ad creatives or landing page`
+            );
           }
-          // Per-type: strong growth
-          if (tPct !== null && tPct > 30) {
-            alerts.push({ level: 'positive', city: c, platform,
-              msg:    `${platform} ${typeLabel}: +${Math.round(tPct)}% vs LMTD`,
-              detail: `MTD ${fmtINR(tMTD)} vs LMTD ${fmtINR(tLMTD)}.` });
+          if (tPct !== null && tPct > 30 && tCpcD <= 10) {
+            push('positive', tMTD,
+              `+${Math.round(tPct)}% growth, efficient CPC`,
+              `${platform} ${typeLabel}: Strong performer`,
+              `MTD ${fmtINR(tMTD)} vs LMTD ${fmtINR(tLMTD)}. CPC holding steady.`,
+              `Consider increasing budget here`
+            );
           }
         });
       }
     });
   });
 
-  // ── All-cities: ranking insights ─────────────────────────
+  // ── All-cities: strategic rank insights ──────────────────
   if (isAll) {
     const ranked = cities.map(c => {
-      const cr = rows.filter(r => r.city === c);
-      return {
-        city: c,
-        gMTD: getAggMetric(cr, 'Google', 'Google - Total',   'SPEND', 'MTD'),
-        mMTD: getAggMetric(cr, 'Meta',   'Facebook - Total', 'SPEND', 'MTD'),
-        gPct: getAggPct   (cr, 'Google', 'Google - Total',   'SPEND'),
-        mPct: getAggPct   (cr, 'Meta',   'Facebook - Total', 'SPEND'),
-      };
-    }).filter(x => x.gMTD + x.mMTD > 0)
-      .sort((a, b) => (b.gMTD + b.mMTD) - (a.gMTD + a.mMTD));
+      const cr = rows.filter(r=>r.city===c);
+      const gMTD = getAggMetric(cr,'Google','Google - Total','SPEND','MTD');
+      const mMTD = getAggMetric(cr,'Meta','Facebook - Total','SPEND','MTD');
+      const gPct = getAggPct(cr,'Google','Google - Total','SPEND');
+      const mPct = getAggPct(cr,'Meta','Facebook - Total','SPEND');
+      const gCPC = getAggMetric(cr,'Google','Google - Total','CPC','MTD');
+      const gCPCLM = getAggMetric(cr,'Google','Google - Total','CPC','LMTD');
+      return { c, total: gMTD+mMTD, gMTD, mMTD, gPct, mPct, gCPC, gCPCLM };
+    }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
 
     if (ranked.length > 0) {
       const top = ranked[0];
-      alerts.push({ level: 'info', city: top.city, platform: 'Both',
-        msg:    `Top city: ${top.city}`,
-        detail: `Google ${fmtINR(top.gMTD)} · Meta ${fmtINR(top.mMTD)} MTD` });
+      push('info', top.total,
+        `Google ${fmtINR(top.gMTD)} + Meta ${fmtINR(top.mMTD)}`,
+        `#1 City: ${top.c}`,
+        `Highest combined MTD spend. ${top.gPct!==null ? (top.gPct>0?'+':'')+Math.round(top.gPct)+'% Google vs LMTD.' : ''}`,
+        `Benchmark this city's setup for other markets`
+      );
     }
-    if (ranked.length > 1) {
-      const btm = ranked[ranked.length - 1];
-      alerts.push({ level: 'info', city: btm.city, platform: 'Both',
-        msg:    `Lowest city: ${btm.city}`,
-        detail: `Google ${fmtINR(btm.gMTD)} · Meta ${fmtINR(btm.mMTD)} MTD` });
+    // Most efficient Google city (lowest CPC with meaningful spend)
+    const efficient = ranked
+      .filter(x => x.gMTD > 50000 && x.gCPCLM > 0 && x.gCPC > 0)
+      .sort((a,b) => (a.gCPC/a.gCPCLM) - (b.gCPC/b.gCPCLM));
+    if (efficient.length > 0) {
+      const e = efficient[0];
+      const eff = Math.round((1 - e.gCPC/e.gCPCLM)*100);
+      if (eff > 0) push('positive', e.gMTD,
+        `CPC down ${eff}% vs LMTD — best efficiency`,
+        `Most efficient city: ${e.c} (Google)`,
+        `CPC ₹${e.gCPC.toFixed(0)} vs ₹${e.gCPCLM.toFixed(0)} last month. High ROI market.`,
+        `Increase budget in ${e.c} first`
+      );
     }
-    // Fastest growing city
-    const growing = [...ranked]
-      .filter(x => x.gPct !== null && x.gPct > 0)
-      .sort((a, b) => (b.gPct||0) - (a.gPct||0));
-    if (growing.length > 0) {
-      const g = growing[0];
-      alerts.push({ level: 'positive', city: g.city, platform: 'Google',
-        msg:    `Fastest Google growth: ${g.city} (+${Math.round(g.gPct)}%)`,
-        detail: `MTD ${fmtINR(g.gMTD)} vs LMTD.` });
+    // Highest pacing risk (projected shortfall in ₹)
+    const pacingRisk = ranked.map(x => {
+      const cr = rows.filter(r=>r.city===x.c);
+      const gLM = getAggMetric(cr,'Google','Google - Total','SPEND','LM');
+      const gProj = getAggMetric(cr,'Google','Google - Total','SPEND','PROJECTED');
+      return { ...x, shortfall: Math.max(0, gLM-gProj), gLM };
+    }).filter(x=>x.shortfall>0).sort((a,b)=>b.shortfall-a.shortfall);
+    if (pacingRisk.length > 0 && !alerts.find(a=>a.title.includes(pacingRisk[0].c))) {
+      const r = pacingRisk[0];
+      push('info', r.shortfall,
+        fmtINR(r.shortfall) + ' Google shortfall projected',
+        `Biggest pacing gap: ${r.c}`,
+        `Projected ${fmtINR(r.gLM-r.shortfall)} vs last month ${fmtINR(r.gLM)}.`,
+        `Prioritise budget increase here`
+      );
     }
   }
 
-  // ── Sort: critical → warning → positive → info ───────────
-  const order = { critical:0, warning:1, positive:2, info:3 };
-  alerts.sort((a, b) => order[a.level] - order[b.level]);
+  // ── Sort: by level order first, then ₹ impact descending ─
+  const ORDER = { urgent:0, critical:1, high:2, warning:3, positive:4, info:5 };
+  alerts.sort((a,b) => ORDER[a.level]!==ORDER[b.level]
+    ? ORDER[a.level]-ORDER[b.level]
+    : b.score - a.score
+  );
 
   // ── Render ───────────────────────────────────────────────
   const body  = document.getElementById('alerts-body');
   const count = document.getElementById('alert-count');
-  const critN = alerts.filter(a => a.level === 'critical').length;
+  const urgN  = alerts.filter(a=>a.level==='urgent').length;
+  const critN = alerts.filter(a=>a.level==='critical'||a.level==='urgent').length;
 
   count.textContent = critN || alerts.length;
-  count.style.background = critN > 0 ? 'var(--red)' : critN === 0 && alerts.length ? 'var(--orange)' : 'var(--green)';
+  count.style.background = urgN>0 ? '#cc0000' : critN>0 ? 'var(--red)' : alerts.length ? 'var(--orange)' : 'var(--green)';
 
   if (!alerts.length) {
-    body.innerHTML = `<div class="no-alerts">✅ No issues detected<br><small style="color:var(--muted)">${isAll ? 'All cities' : selectedCity} · ${formatDate(date)}</small></div>`;
+    body.innerHTML = `<div class="no-alerts">✅ All metrics look healthy<br><small style="color:var(--muted)">${isAll?'All cities':selectedCity} · ${formatDate(date)}</small></div>`;
     return;
   }
 
-  const icons  = { critical:'🔴', warning:'🟡', positive:'🟢', info:'🔵' };
-  const labels = { critical:'Critical', warning:'Warning', positive:'Opportunity', info:'Insight' };
+  const ICONS  = { urgent:'🚨', critical:'🔴', high:'⚡', warning:'⚠️', positive:'🚀', info:'📊' };
+  const LABELS = { urgent:'Act Now', critical:'Critical', high:'High Priority', warning:'Watch', positive:'Scale Up', info:'Insight' };
 
-  body.innerHTML = alerts.map(a => `
-    <div class="alert-item alert-${a.level}">
-      <div class="alert-priority">${icons[a.level]} ${labels[a.level]}</div>
-      <div class="alert-msg">${a.msg}</div>
-      <div class="alert-detail">${a.detail}</div>
-    </div>`).join('');
+  // Group sections
+  const sections = [
+    { key: 'urgent',   label: 'Immediate Action' },
+    { key: 'critical', label: 'Critical Issues' },
+    { key: 'high',     label: 'High Priority' },
+    { key: 'warning',  label: 'Watch' },
+    { key: 'positive', label: 'Scale Opportunities' },
+    { key: 'info',     label: 'Strategic Insights' },
+  ];
+
+  let html = '';
+  sections.forEach(sec => {
+    const grp = alerts.filter(a=>a.level===sec.key);
+    if (!grp.length) return;
+    html += `<div class="section-divider">${sec.label} (${grp.length})</div>`;
+    grp.forEach(a => {
+      html += `
+      <div class="alert-item alert-${a.level}">
+        <div class="alert-label">${ICONS[a.level]} ${LABELS[a.level]}
+          ${a.impact ? `<span class="alert-impact-tag ${a.level==='positive'?'tag-gain':a.level==='info'?'tag-gain':'tag-loss'}">${a.impact}</span>` : ''}
+        </div>
+        <div class="alert-impact">${a.title}</div>
+        <div class="alert-context">${a.context}</div>
+        <span class="alert-action">→ ${a.action}</span>
+      </div>`;
+    });
+  });
+  body.innerHTML = html;
 }
 
 function getFirstPct(rows, platform, campaign_type, sub_metric) {
