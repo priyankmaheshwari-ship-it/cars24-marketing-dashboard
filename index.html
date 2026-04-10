@@ -370,6 +370,46 @@ function buildMetaTable(rows) {
   return buildPlatformTable(rows, 'Meta', META_TYPES, 'Meta (Facebook) Performance', 'badge-meta');
 }
 
+// ─────────────────────────────────────────────
+//  AGGREGATION HELPERS  (fix for All Cities)
+// ─────────────────────────────────────────────
+const NUM_COLS = ['D1','LMTD','LM','MTD','PROJECTED','L7D','LL7D'];
+
+// Sum SPEND or CLICKS rows across all cities; recalculate MTD_vs_LMTD from sums
+function aggregateSubRows(typeRows, sub) {
+  const matching = typeRows.filter(r => r.sub_metric === sub);
+  if (!matching.length) return null;
+  if (matching.length === 1) return matching[0]; // single city — return as-is
+
+  const agg = {};
+  NUM_COLS.forEach(col => {
+    agg[col] = matching.reduce((s, r) => s + (parseFloat(r[col]) || 0), 0);
+  });
+  // Recalculate MTD_vs_LMTD from aggregated sums (not average of pcts)
+  agg.MTD_vs_LMTD = agg.LMTD > 0
+    ? Math.round((agg.MTD - agg.LMTD) / agg.LMTD * 1000) / 10
+    : null;
+  return agg;
+}
+
+// CPC must be derived from aggregated spend ÷ clicks (never summed directly)
+function computeAggCPC(typeRows) {
+  const spendAgg  = aggregateSubRows(typeRows, 'SPEND');
+  const clicksAgg = aggregateSubRows(typeRows, 'CLICKS');
+  if (!spendAgg || !clicksAgg) return null;
+
+  const cpc = {};
+  NUM_COLS.forEach(col => {
+    const s = parseFloat(spendAgg[col])  || 0;
+    const c = parseFloat(clicksAgg[col]) || 0;
+    cpc[col] = c > 0 ? Math.round(s / c * 100) / 100 : 0;
+  });
+  cpc.MTD_vs_LMTD = cpc.LMTD > 0
+    ? Math.round((cpc.MTD - cpc.LMTD) / cpc.LMTD * 1000) / 10
+    : null;
+  return cpc;
+}
+
 function buildPlatformTable(rows, platform, types, title, badgeClass) {
   let html = `<div class="card">
     <div class="card-header">
@@ -398,23 +438,27 @@ function buildPlatformTable(rows, platform, types, title, badgeClass) {
 
   types.forEach(type => {
     const typeRows = rows.filter(r => r.platform===platform && r.campaign_type===type.key);
+
     ['SPEND','CLICKS','CPC'].forEach((sub, si) => {
-      const r = typeRows.find(r => r.sub_metric === sub);
+      // ── FIXED: aggregate across all cities instead of find() first row ──
+      const r = sub === 'CPC'
+        ? computeAggCPC(typeRows)
+        : aggregateSubRows(typeRows, sub);
+
       const trClass = (type.isTotal ? 'total-row ' : 'type-row ') + 'sub-' + sub.toLowerCase();
       html += `<tr class="${trClass}">`;
-      // Type label only on first sub-metric row
       html += `<td>${si === 0 ? type.label : ''}</td>`;
       html += `<td>${sub}</td>`;
 
       if (r) {
-        const d1     = r.D1     ?? 0;
-        const lmtd   = r.LMTD   ?? 0;
-        const lm     = r.LM     ?? 0;
-        const mtd    = r.MTD    ?? 0;
-        const pct    = r.MTD_vs_LMTD;
-        const proj   = r.PROJECTED ?? 0;
-        const l7d    = r.L7D    ?? 0;
-        const ll7d   = r.LL7D   ?? 0;
+        const d1   = parseFloat(r.D1)         || 0;
+        const lmtd = parseFloat(r.LMTD)       || 0;
+        const lm   = parseFloat(r.LM)         || 0;
+        const mtd  = parseFloat(r.MTD)        || 0;
+        const pct  = r.MTD_vs_LMTD;
+        const proj = parseFloat(r.PROJECTED)  || 0;
+        const l7d  = parseFloat(r.L7D)        || 0;
+        const ll7d = parseFloat(r.LL7D)       || 0;
 
         const isAlert = (sub === 'SPEND' && d1 === 0 && !type.isTotal);
 
